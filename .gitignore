@@ -35,3 +35,6 @@ Thumbs.db
 
 ## Logs
 *.log
+## Local development files (not for remote repo)
+.github/
+DEV_LOG.md
