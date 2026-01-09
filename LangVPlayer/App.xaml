@@ -2,9 +2,13 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:LangVPlayer"
+             xmlns:helpers="clr-namespace:LangVPlayer.Helpers"
              StartupUri="MainWindow.xaml">
     <Application.Resources>
         <ResourceDictionary>
+            <!-- Converters / Конвертеры -->
+            <helpers:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+            
             <!-- Dark Theme Colors / Цвета темной темы -->
             <Color x:Key="PrimaryBackgroundColor">#1E1E1E</Color>
             <Color x:Key="SecondaryBackgroundColor">#2D2D30</Color>
@@ -170,6 +174,175 @@
                                     </Track.IncreaseRepeatButton>
                                 </Track>
                             </Grid>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!-- Menu Dark Theme Style / Стиль меню в темной теме -->
+            <Style TargetType="Menu">
+                <Setter Property="Background" Value="{StaticResource TitleBarBrush}"/>
+                <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+                <Setter Property="BorderThickness" Value="0"/>
+            </Style>
+
+            <!-- Context Menu Popup Style / Стиль всплывающего меню -->
+            <Style TargetType="ContextMenu">
+                <Setter Property="Background" Value="{StaticResource SecondaryBackgroundBrush}"/>
+                <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+                <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="Padding" Value="2"/>
+            </Style>
+
+            <!-- MenuItem TopLevel Header Style / Стиль заголовка меню верхнего уровня -->
+            <Style x:Key="MenuItemTopLevelHeaderStyle" TargetType="MenuItem">
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="Padding" Value="8,4"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="MenuItem">
+                            <Border x:Name="Border" 
+                                    Background="{TemplateBinding Background}" 
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="4"
+                                    Padding="{TemplateBinding Padding}">
+                                <ContentPresenter ContentSource="Header"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsHighlighted" Value="True">
+                                    <Setter TargetName="Border" Property="Background" Value="#3C3C3C"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!-- MenuItem Style with Submenu / Стиль пункта меню с подменю -->
+            <Style TargetType="MenuItem">
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="Padding" Value="10,6"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="MenuItem">
+                            <Grid>
+                                <!-- Main MenuItem Area / Основная область пункта меню -->
+                                <Border x:Name="Border" 
+                                        Background="{TemplateBinding Background}" 
+                                        BorderThickness="0"
+                                        CornerRadius="4"
+                                        Margin="4,2">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" SharedSizeGroup="Icon"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto" SharedSizeGroup="Shortcut"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        
+                                        <!-- Check Mark / Галочка -->
+                                        <Border x:Name="CheckMark" 
+                                                Grid.Column="0" 
+                                                Width="20" Height="20" 
+                                                Margin="4,0"
+                                                Visibility="Collapsed">
+                                            <TextBlock Text="✓" 
+                                                       FontSize="12" 
+                                                       Foreground="{StaticResource AccentBrush}"
+                                                       VerticalAlignment="Center" 
+                                                       HorizontalAlignment="Center"/>
+                                        </Border>
+                                        
+                                        <!-- Header / Заголовок -->
+                                        <ContentPresenter Grid.Column="1" 
+                                                          ContentSource="Header" 
+                                                          Margin="8,6"
+                                                          VerticalAlignment="Center"/>
+                                        
+                                        <!-- Input Gesture Text / Сочетание клавиш -->
+                                        <TextBlock Grid.Column="2" 
+                                                   Text="{TemplateBinding InputGestureText}" 
+                                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                                   FontSize="11"
+                                                   Margin="20,0,10,0"
+                                                   VerticalAlignment="Center"/>
+                                        
+                                        <!-- Submenu Arrow / Стрелка подменю -->
+                                        <Path x:Name="SubMenuArrow" 
+                                              Grid.Column="3" 
+                                              Data="M0,0 L4,4 L0,8" 
+                                              Fill="{StaticResource TextSecondaryBrush}"
+                                              VerticalAlignment="Center"
+                                              Margin="0,0,10,0"
+                                              Visibility="Collapsed"/>
+                                    </Grid>
+                                </Border>
+                                
+                                <!-- Submenu Popup / Всплывающее подменю -->
+                                <Popup x:Name="PART_Popup"
+                                       IsOpen="{Binding IsSubmenuOpen, RelativeSource={RelativeSource TemplatedParent}}"
+                                       Placement="Right"
+                                       PlacementTarget="{Binding ElementName=Border}"
+                                       AllowsTransparency="True"
+                                       Focusable="False"
+                                       PopupAnimation="Fade">
+                                    <Border Background="{StaticResource SecondaryBackgroundBrush}"
+                                            BorderBrush="{StaticResource BorderBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="8"
+                                            Margin="8"
+                                            Padding="4">
+                                        <Border.Effect>
+                                            <DropShadowEffect Color="Black" 
+                                                              BlurRadius="15" 
+                                                              ShadowDepth="3" 
+                                                              Opacity="0.4"/>
+                                        </Border.Effect>
+                                        <StackPanel IsItemsHost="True" 
+                                                    KeyboardNavigation.DirectionalNavigation="Cycle"
+                                                    Grid.IsSharedSizeScope="True"/>
+                                    </Border>
+                                </Popup>
+                            </Grid>
+                            <ControlTemplate.Triggers>
+                                <!-- Highlight on hover / Подсветка при наведении -->
+                                <Trigger Property="IsHighlighted" Value="True">
+                                    <Setter TargetName="Border" Property="Background" Value="{StaticResource AccentBrush}"/>
+                                </Trigger>
+                                <!-- Show arrow for items with submenu / Показать стрелку для элементов с подменю -->
+                                <Trigger Property="Role" Value="SubmenuHeader">
+                                    <Setter TargetName="SubMenuArrow" Property="Visibility" Value="Visible"/>
+                                </Trigger>
+                                <!-- Show checkmark for checked items / Показать галочку для отмеченных элементов -->
+                                <Trigger Property="IsChecked" Value="True">
+                                    <Setter TargetName="CheckMark" Property="Visibility" Value="Visible"/>
+                                </Trigger>
+                                <!-- Top level header popup placement / Размещение popup для заголовков верхнего уровня -->
+                                <Trigger Property="Role" Value="TopLevelHeader">
+                                    <Setter TargetName="PART_Popup" Property="Placement" Value="Bottom"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style TargetType="Separator">
+                <Setter Property="Background" Value="{StaticResource BorderBrush}"/>
+                <Setter Property="Margin" Value="10,4"/>
+                <Setter Property="Height" Value="1"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Separator">
+                            <Border Background="{StaticResource BorderBrush}" 
+                                    Height="1" 
+                                    Margin="{TemplateBinding Margin}"/>
                         </ControlTemplate>
                     </Setter.Value>
                 </Setter>

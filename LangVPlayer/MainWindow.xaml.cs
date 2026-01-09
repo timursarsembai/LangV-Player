@@ -1,13 +1,13 @@
 ﻿using System;
+using System.Collections.ObjectModel;
+using System.Linq;
 using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Threading;
-using System.Windows.Forms;
-using Microsoft.Win32;
-using Mpv.NET.Player;
+using LibVLCSharp.Shared;
 using LangVPlayer.Services;
 using LangVPlayer.Helpers;
+using LangVPlayer.Models;
 
 namespace LangVPlayer;
 
@@ -19,17 +19,26 @@ public partial class MainWindow : Window
 {
     #region Fields / Поля
 
-    private MpvPlayer? _mpvPlayer;
-    private System.Windows.Forms.Panel? _mpvPanel;
+    private LibVLC? _libVLC;
+    private MediaPlayer? _mediaPlayer;
+    private Media? _currentMedia; // Current media object, must be disposed / Текущий объект Media, должен быть освобождён
     private AppSettings _settings;
-    private DispatcherTimer? _positionTimer;
+    private DispatcherTimer? _controlPanelTimer;
     private bool _isDraggingSlider = false;
+    private long _pendingSeekPosition = -1; // Position we're seeking to, blocks TimeChanged updates / Позиция к которой перематываем, блокирует обновления TimeChanged
     private bool _isFullscreen = false;
+    private bool _isMuted = false;
+    private double _volumeBeforeMute = 100;
+    private string? _currentVideoPath;
     private System.Windows.WindowState _previousWindowState;
     private double _previousWidth;
     private double _previousHeight;
     private double _previousLeft;
     private double _previousTop;
+    
+    // Playlist / Плейлист
+    private ObservableCollection<PlaylistItem> _playlist = new();
+    private int _currentPlaylistIndex = -1;
 
     #endregion
 
@@ -45,8 +54,33 @@ public partial class MainWindow : Window
         // Apply saved window position and size / Применение сохраненной позиции и размера окна
         ApplySettings();
         
-        // Initialize position timer / Инициализация таймера позиции
-        InitializePositionTimer();
+        // Initialize control panel hide timer / Инициализация таймера скрытия панели управления
+        InitializeControlPanelTimer();
+        
+        // Initialize playlist / Инициализация плейлиста
+        PlaylistListBox.ItemsSource = _playlist;
+        
+        // Register timeline slider click handler with handledEventsToo = true
+        // Регистрация обработчика клика по слайдеру с handledEventsToo = true
+        TimelineSlider.AddHandler(
+            System.Windows.Controls.Primitives.Track.MouseLeftButtonDownEvent,
+            new MouseButtonEventHandler(TimelineSlider_TrackMouseDown),
+            true); // handledEventsToo = true - catch even handled events
+        
+        // Set focus on Loaded to enable keyboard shortcuts / Установить фокус при загрузке для работы горячих клавиш
+        this.Loaded += (s, e) => { this.Focus(); };
+        
+        // Apply AlwaysOnTop after window handle is created / Применить AlwaysOnTop после создания дескриптора окна
+        this.SourceInitialized += (s, e) =>
+        {
+            if (_settings.AlwaysOnTop)
+            {
+                this.Topmost = true;
+                PinButton.IsChecked = true;
+                MenuAlwaysOnTop.IsChecked = true;
+                WindowHelper.SetAlwaysOnTop(this, true);
+            }
+        };
     }
 
     #endregion
@@ -55,15 +89,11 @@ public partial class MainWindow : Window
 
     private void Window_Loaded(object sender, RoutedEventArgs e)
     {
-        // Initialize MPV player / Инициализация MPV плеера
-        InitializeMpvPlayer();
+        // Initialize VLC player / Инициализация VLC плеера
+        InitializeVlcPlayer();
         
-        // Apply always on top setting / Применение настройки "всегда поверх"
-        if (_settings.AlwaysOnTop)
-        {
-            PinButton.IsChecked = true;
-            WindowHelper.SetAlwaysOnTop(this, true);
-        }
+        // Note: AlwaysOnTop is applied in SourceInitialized event (constructor) where hwnd is guaranteed
+        // Примечание: AlwaysOnTop применяется в событии SourceInitialized (конструктор) где hwnd гарантирован
     }
 
     private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
@@ -71,9 +101,11 @@ public partial class MainWindow : Window
         // Save current settings / Сохранение текущих настроек
         SaveCurrentSettings();
         
-        // Dispose MPV player / Освобождение ресурсов MPV
-        _mpvPlayer?.Dispose();
-        _positionTimer?.Stop();
+        // Dispose VLC player / Освобождение ресурсов VLC
+        _mediaPlayer?.Stop();
+        _currentMedia?.Dispose();
+        _mediaPlayer?.Dispose();
+        _libVLC?.Dispose();
     }
 
     private void Window_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
@@ -86,11 +118,11 @@ public partial class MainWindow : Window
                 e.Handled = true;
                 break;
             case Key.Left:
-                SeekRelative(-10);
+                SeekRelative(-10000); // milliseconds
                 e.Handled = true;
                 break;
             case Key.Right:
-                SeekRelative(10);
+                SeekRelative(10000); // milliseconds
                 e.Handled = true;
                 break;
             case Key.Up:
@@ -106,6 +138,10 @@ public partial class MainWindow : Window
                 ToggleFullscreen();
                 e.Handled = true;
                 break;
+            case Key.M:
+                ToggleMute();
+                e.Handled = true;
+                break;
             case Key.Escape:
                 if (_isFullscreen)
                 {
@@ -114,6 +150,49 @@ public partial class MainWindow : Window
                 }
                 break;
         }
+    }
+
+    #endregion
+
+    #region Video Overlay Events / События прозрачного слоя видео
+
+    private void VideoOverlay_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        // Return focus to window for hotkeys / Вернуть фокус на окно для горячих клавиш
+        this.Focus();
+        
+        // Double-click to toggle fullscreen / Двойной клик для переключения полноэкранного режима
+        if (e.ClickCount == 2)
+        {
+            ToggleFullscreen();
+            e.Handled = true;
+        }
+        // Single click does nothing now / Одиночный клик теперь ничего не делает
+    }
+
+    private void VideoOverlay_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        if (!_isFullscreen) return;
+
+        // Show control panel on any mouse movement in fullscreen mode
+        // Показываем панель управления при любом движении мыши в полноэкранном режиме
+        ShowControlPanel();
+        StartControlPanelHideTimer();
+    }
+
+    private void VideoOverlay_MouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        // Change volume with mouse wheel / Изменение громкости колесом мыши
+        // Delta > 0 = scroll up = increase volume / Delta > 0 = прокрутка вверх = увеличить громкость
+        // Delta < 0 = scroll down = decrease volume / Delta < 0 = прокрутка вниз = уменьшить громкость
+        double volumeChange = e.Delta > 0 ? 5 : -5;
+        double newVolume = VolumeSlider.Value + volumeChange;
+        
+        // Clamp to valid range / Ограничить допустимым диапазоном
+        newVolume = Math.Max(0, Math.Min(200, newVolume));
+        VolumeSlider.Value = newVolume;
+        
+        e.Handled = true;
     }
 
     #endregion
@@ -136,7 +215,7 @@ public partial class MainWindow : Window
 
     private void MinimizeButton_Click(object sender, RoutedEventArgs e)
     {
-        WindowState = WindowState.Minimized;
+        WindowState = System.Windows.WindowState.Minimized;
     }
 
     private void MaximizeButton_Click(object sender, RoutedEventArgs e)
@@ -153,12 +232,72 @@ public partial class MainWindow : Window
     {
         _settings.AlwaysOnTop = true;
         WindowHelper.SetAlwaysOnTop(this, true);
+        MenuAlwaysOnTop.IsChecked = true;
     }
 
     private void PinButton_Unchecked(object sender, RoutedEventArgs e)
     {
         _settings.AlwaysOnTop = false;
         WindowHelper.SetAlwaysOnTop(this, false);
+        MenuAlwaysOnTop.IsChecked = false;
+    }
+
+    #endregion
+
+    #region Menu Events / События меню
+
+    private void MenuOpenFile_Click(object sender, RoutedEventArgs e)
+    {
+        OpenVideoFile();
+    }
+
+    private void MenuOpenUrl_Click(object sender, RoutedEventArgs e)
+    {
+        // TODO: Implement URL opening dialog
+        // TODO: Реализовать диалог открытия URL
+        System.Windows.MessageBox.Show("Функция открытия URL будет добавлена позже.", "LangV Player", MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    private void MenuStop_Click(object sender, RoutedEventArgs e)
+    {
+        _mediaPlayer?.Stop();
+        PlayPauseButton.Content = "\uE768"; // Play icon
+    }
+
+    private void MenuVolumeUp_Click(object sender, RoutedEventArgs e)
+    {
+        ChangeVolume(5);
+    }
+
+    private void MenuVolumeDown_Click(object sender, RoutedEventArgs e)
+    {
+        ChangeVolume(-5);
+    }
+
+    private void MenuAlwaysOnTop_Checked(object sender, RoutedEventArgs e)
+    {
+        _settings.AlwaysOnTop = true;
+        WindowHelper.SetAlwaysOnTop(this, true);
+        PinButton.IsChecked = true;
+    }
+
+    private void MenuAlwaysOnTop_Unchecked(object sender, RoutedEventArgs e)
+    {
+        _settings.AlwaysOnTop = false;
+        WindowHelper.SetAlwaysOnTop(this, false);
+        PinButton.IsChecked = false;
+    }
+
+    private void MenuAbout_Click(object sender, RoutedEventArgs e)
+    {
+        System.Windows.MessageBox.Show(
+            "LangV Player v1.0\n\n" +
+            "Видеоплеер для изучения языков\n" +
+            "Video player for language learning\n\n" +
+            "© 2026 LangV Team",
+            "О программе",
+            MessageBoxButton.OK,
+            MessageBoxImage.Information);
     }
 
     #endregion
@@ -177,12 +316,12 @@ public partial class MainWindow : Window
 
     private void RewindButton_Click(object sender, RoutedEventArgs e)
     {
-        SeekRelative(-10);
+        SeekRelative(-10000); // -10 seconds in ms
     }
 
     private void ForwardButton_Click(object sender, RoutedEventArgs e)
     {
-        SeekRelative(10);
+        SeekRelative(10000); // +10 seconds in ms
     }
 
     private void FullscreenButton_Click(object sender, RoutedEventArgs e)
@@ -190,73 +329,190 @@ public partial class MainWindow : Window
         ToggleFullscreen();
     }
 
+    private void VolumeIcon_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        // Toggle mute / Переключение mute
+        ToggleMute();
+        e.Handled = true;
+    }
+
+    private void ToggleMute()
+    {
+        if (_mediaPlayer == null) return;
+        
+        if (_isMuted)
+        {
+            // Unmute - restore previous volume / Включить звук - восстановить предыдущую громкость
+            _isMuted = false;
+            VolumeSlider.Value = _volumeBeforeMute;
+            _mediaPlayer.Volume = (int)_volumeBeforeMute;
+        }
+        else
+        {
+            // Mute - save current volume and set to 0 / Выключить звук - сохранить текущую громкость и установить 0
+            _volumeBeforeMute = VolumeSlider.Value > 0 ? VolumeSlider.Value : 100;
+            _isMuted = true;
+            _mediaPlayer.Volume = 0;
+        }
+        UpdateVolumeIcon();
+    }
+
     private void VolumeSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
-        if (_mpvPlayer != null)
+        if (_mediaPlayer != null)
         {
-            _mpvPlayer.Volume = (int)e.NewValue;
+            // If user changes volume manually, unmute / Если пользователь вручную меняет громкость, убрать mute
+            if (_isMuted && e.NewValue > 0)
+            {
+                _isMuted = false;
+            }
+            _mediaPlayer.Volume = (int)e.NewValue;
             _settings.Volume = e.NewValue;
             UpdateVolumeIcon();
+        }
+        
+        // Update volume percentage text / Обновить текст процента громкости
+        if (VolumePercentText != null)
+        {
+            VolumePercentText.Text = $"{(int)e.NewValue}%";
         }
     }
 
     private void TimelineSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
-        if (_isDraggingSlider && _mpvPlayer != null)
+        // Seek when user interacts with slider (not when TimeChanged updates it)
+        // Перемотка когда пользователь взаимодействует со слайдером (не когда TimeChanged обновляет)
+        if (_isDraggingSlider && _mediaPlayer != null && _mediaPlayer.Length > 0)
         {
-            // Don't seek while dragging, wait for mouse up
-            // Не перематываем во время перетаскивания, ждем отпускания мыши
+            // Update time display during drag / Обновить время во время перетаскивания
+            CurrentTimeText.Text = FormatTime(TimeSpan.FromMilliseconds(e.NewValue));
         }
     }
 
-    private void TimelineSlider_PreviewMouseDown(object sender, MouseButtonEventArgs e)
+    private void TimelineSlider_DragStarted(object sender, System.Windows.Controls.Primitives.DragStartedEventArgs e)
     {
+        // User started dragging the thumb / Пользователь начал перетаскивать бегунок
         _isDraggingSlider = true;
     }
 
-    private void TimelineSlider_PreviewMouseUp(object sender, MouseButtonEventArgs e)
+    private void TimelineSlider_DragCompleted(object sender, System.Windows.Controls.Primitives.DragCompletedEventArgs e)
     {
-        if (_mpvPlayer != null && _mpvPlayer.Duration.TotalSeconds > 0)
-        {
-            var seekPosition = TimeSpan.FromSeconds(TimelineSlider.Value);
-            _mpvPlayer.SeekAsync(seekPosition);
-        }
+        // User finished dragging - perform seek / Пользователь закончил перетаскивание - выполнить перемотку
         _isDraggingSlider = false;
+        
+        if (_mediaPlayer != null && _mediaPlayer.Length > 0)
+        {
+            // Block TimeChanged updates until VLC reaches new position
+            // Блокировать обновления TimeChanged пока VLC не достигнет новой позиции
+            _pendingSeekPosition = (long)TimelineSlider.Value;
+            
+            // Use Position (0.0-1.0) for better MKV support
+            // Использовать Position (0.0-1.0) для лучшей поддержки MKV
+            float position = (float)(TimelineSlider.Value / TimelineSlider.Maximum);
+            _mediaPlayer.Position = position;
+        }
+    }
+
+    private void TimelineSlider_TrackMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        // Handle click-to-seek on the track (not on thumb)
+        // Обработка клика по дорожке для перемотки (не на бегунке)
+        if (_mediaPlayer == null || _mediaPlayer.Length <= 0)
+            return;
+        
+        // Skip if dragging (thumb handles that) / Пропустить если перетаскиваем (бегунок обработает)
+        if (_isDraggingSlider)
+            return;
+        
+        // Check if click is on the thumb - if so, skip (thumb will handle it)
+        // Проверяем клик на бегунке - если да, пропускаем (бегунок обработает)
+        var slider = TimelineSlider;
+        var thumb = FindVisualChild<System.Windows.Controls.Primitives.Thumb>(slider);
+        
+        if (thumb != null)
+        {
+            var clickPoint = e.GetPosition(thumb);
+            if (clickPoint.X >= 0 && clickPoint.X <= thumb.ActualWidth &&
+                clickPoint.Y >= 0 && clickPoint.Y <= thumb.ActualHeight)
+            {
+                return; // Click on thumb, let it handle / Клик на бегунке, пусть обрабатывает
+            }
+        }
+        
+        // Calculate position from click / Вычислить позицию из клика
+        var point = e.GetPosition(slider);
+        var ratio = point.X / slider.ActualWidth;
+        ratio = Math.Max(0.0, Math.Min(1.0, ratio)); // Clamp to 0-1 / Ограничить 0-1
+        var newTimeMs = ratio * _mediaPlayer.Length;
+        
+        // Block TimeChanged updates until VLC reaches new position
+        // Блокировать обновления TimeChanged пока VLC не достигнет новой позиции
+        _pendingSeekPosition = (long)newTimeMs;
+        
+        // Update UI / Обновить интерфейс
+        TimelineSlider.Value = newTimeMs;
+        CurrentTimeText.Text = FormatTime(TimeSpan.FromMilliseconds(newTimeMs));
+        
+        // Perform seek using Position (0.0-1.0) for better MKV/AVI support
+        // Выполнить перемотку используя Position (0.0-1.0) для лучшей поддержки MKV/AVI
+        _mediaPlayer.Position = (float)ratio;
+    }
+
+    /// <summary>
+    /// Find a visual child of specified type / Найти визуальный дочерний элемент указанного типа
+    /// </summary>
+    private T? FindVisualChild<T>(System.Windows.DependencyObject parent) where T : System.Windows.DependencyObject
+    {
+        for (int i = 0; i < System.Windows.Media.VisualTreeHelper.GetChildrenCount(parent); i++)
+        {
+            var child = System.Windows.Media.VisualTreeHelper.GetChild(parent, i);
+            if (child is T result)
+                return result;
+            var childOfChild = FindVisualChild<T>(child);
+            if (childOfChild != null)
+                return childOfChild;
+        }
+        return null;
     }
 
     #endregion
 
-    #region MPV Player Methods / Методы MPV плеера
+    #region VLC Player Methods / Методы VLC плеера
 
-    private void InitializeMpvPlayer()
+    private void InitializeVlcPlayer()
     {
         try
         {
-            // Create a WinForms Panel to host MPV / Создаем WinForms Panel для размещения MPV
-            _mpvPanel = new System.Windows.Forms.Panel
-            {
-                Dock = DockStyle.Fill,
-                BackColor = System.Drawing.Color.Black
-            };
-            MpvHost.Child = _mpvPanel;
-
-            // Create MPV player with the panel's handle / Создание MPV плеера с дескриптором панели
-            _mpvPlayer = new MpvPlayer(_mpvPanel.Handle)
-            {
-                Volume = (int)_settings.Volume
-            };
-
+            // Path to system VLC installation / Путь к системной установке VLC
+            string vlcPath = @"C:\Program Files\VideoLAN\VLC";
+            
+            // Initialize LibVLC with system VLC path / Инициализация LibVLC с путем к системному VLC
+            Core.Initialize(vlcPath);
+            
+            // Create LibVLC using system VLC (full codec support including AC3) /
+            // Создание LibVLC с использованием системного VLC (полная поддержка кодеков включая AC3)
+            _libVLC = new LibVLC();
+            _mediaPlayer = new MediaPlayer(_libVLC);
+            
+            // Set the video output to our VideoView / Устанавливаем вывод видео в наш VideoView
+            VideoView.MediaPlayer = _mediaPlayer;
+            
+            // Set initial volume / Установка начальной громкости
             VolumeSlider.Value = _settings.Volume;
             UpdateVolumeIcon();
 
             // Event handlers / Обработчики событий
-            _mpvPlayer.MediaLoaded += MpvPlayer_MediaLoaded;
-            _mpvPlayer.MediaFinished += MpvPlayer_MediaFinished;
+            _mediaPlayer.Playing += MediaPlayer_Playing;
+            _mediaPlayer.Paused += MediaPlayer_Paused;
+            _mediaPlayer.Stopped += MediaPlayer_Stopped;
+            _mediaPlayer.EndReached += MediaPlayer_EndReached;
+            _mediaPlayer.LengthChanged += MediaPlayer_LengthChanged;
+            _mediaPlayer.TimeChanged += MediaPlayer_TimeChanged; // Use TimeChanged event for position updates / Используем TimeChanged для обновления позиции
         }
         catch (Exception ex)
         {
             System.Windows.MessageBox.Show(
-                $"Failed to initialize MPV player.\nОшибка инициализации MPV плеера.\n\n{ex.Message}",
+                $"Failed to initialize VLC player.\nОшибка инициализации VLC плеера.\n\n{ex.Message}",
                 "Error / Ошибка",
                 MessageBoxButton.OK,
                 MessageBoxImage.Error
@@ -264,24 +520,125 @@ public partial class MainWindow : Window
         }
     }
 
-    private void MpvPlayer_MediaLoaded(object? sender, EventArgs e)
+    private void MediaPlayer_Playing(object? sender, EventArgs e)
     {
-        Dispatcher.Invoke(() =>
+        Dispatcher.Invoke(async () =>
         {
-            if (_mpvPlayer != null)
+            PlayPauseButton.Content = "\uE769"; // Pause icon
+            NoVideoPlaceholder.Visibility = Visibility.Collapsed;
+            
+            // Small delay to ensure media is fully loaded / Небольшая задержка для полной загрузки медиа
+            await System.Threading.Tasks.Task.Delay(200);
+            
+            if (_mediaPlayer != null)
             {
-                TimelineSlider.Maximum = _mpvPlayer.Duration.TotalSeconds;
-                TotalTimeText.Text = FormatTime(_mpvPlayer.Duration);
-                NoVideoPlaceholder.Visibility = Visibility.Collapsed;
+                // Ensure audio track is selected / Убедиться что аудиодорожка выбрана
+                var audioTrackCount = _mediaPlayer.AudioTrackCount;
+                if (audioTrackCount > 0 && _mediaPlayer.AudioTrack == -1)
+                {
+                    // Select first audio track if none selected / Выбрать первую аудиодорожку если ни одна не выбрана
+                    _mediaPlayer.SetAudioTrack(1);
+                    System.Diagnostics.Debug.WriteLine($"Audio track auto-selected. Total tracks: {audioTrackCount}");
+                }
+                
+                // Restore volume after media starts playing / Восстановить громкость после начала воспроизведения
+                int targetVolume = _isMuted ? 0 : (int)VolumeSlider.Value;
+                _mediaPlayer.Volume = targetVolume;
+                
+                // Debug: Log audio info / Отладка: Логирование информации об аудио
+                System.Diagnostics.Debug.WriteLine($"Volume: {targetVolume}, AudioTrack: {_mediaPlayer.AudioTrack}, AudioTrackCount: {audioTrackCount}");
             }
         });
     }
 
-    private void MpvPlayer_MediaFinished(object? sender, EventArgs e)
+    private void MediaPlayer_Paused(object? sender, EventArgs e)
     {
         Dispatcher.Invoke(() =>
         {
             PlayPauseButton.Content = "\uE768"; // Play icon
+            
+            // Show control panel when paused in fullscreen / Показываем панель управления при паузе в полноэкранном режиме
+            if (_isFullscreen)
+            {
+                ShowControlPanel();
+            }
+        });
+    }
+
+    private void MediaPlayer_Stopped(object? sender, EventArgs e)
+    {
+        Dispatcher.Invoke(() =>
+        {
+            PlayPauseButton.Content = "\uE768"; // Play icon
+            
+            // Show control panel when stopped in fullscreen / Показываем панель управления при остановке в полноэкранном режиме
+            if (_isFullscreen)
+            {
+                ShowControlPanel();
+            }
+        });
+    }
+
+    private void MediaPlayer_EndReached(object? sender, EventArgs e)
+    {
+        Dispatcher.Invoke(() =>
+        {
+            PlayPauseButton.Content = "\uE768"; // Play icon
+            TimelineSlider.Value = 0;
+            CurrentTimeText.Text = "00:00";
+            
+            // Show control panel when video ends in fullscreen / Показываем панель управления при завершении видео в полноэкранном режиме
+            if (_isFullscreen)
+            {
+                ShowControlPanel();
+            }
+            
+            // Auto-play next item in playlist / Автовоспроизведение следующего элемента плейлиста
+            if (_currentPlaylistIndex >= 0 && _currentPlaylistIndex < _playlist.Count - 1)
+            {
+                PlayNextInPlaylist();
+            }
+        });
+    }
+
+    private void MediaPlayer_LengthChanged(object? sender, MediaPlayerLengthChangedEventArgs e)
+    {
+        Dispatcher.Invoke(() =>
+        {
+            TimelineSlider.Maximum = e.Length;
+            TotalTimeText.Text = FormatTime(TimeSpan.FromMilliseconds(e.Length));
+        });
+    }
+
+    private void MediaPlayer_TimeChanged(object? sender, MediaPlayerTimeChangedEventArgs e)
+    {
+        // TimeChanged is called from VLC when playback position changes
+        // TimeChanged вызывается VLC когда позиция воспроизведения меняется
+        Dispatcher.Invoke(() =>
+        {
+            // Skip update if user is dragging slider
+            // Пропустить обновление если пользователь перетаскивает слайдер
+            if (_isDraggingSlider)
+                return;
+            
+            // Check if we have a pending seek position
+            // Проверяем есть ли ожидающая позиция перемотки
+            if (_pendingSeekPosition >= 0)
+            {
+                // Allow update only if VLC has reached near the target position (within 2 seconds)
+                // Разрешить обновление только если VLC достиг целевой позиции (в пределах 2 секунд)
+                if (Math.Abs(e.Time - _pendingSeekPosition) < 2000)
+                {
+                    _pendingSeekPosition = -1; // Clear pending seek / Сбросить ожидающую перемотку
+                }
+                else
+                {
+                    return; // Still waiting for VLC to reach target / Ещё ждём пока VLC достигнет цели
+                }
+            }
+            
+            TimelineSlider.Value = e.Time;
+            CurrentTimeText.Text = FormatTime(TimeSpan.FromMilliseconds(e.Time));
         });
     }
 
@@ -295,17 +652,54 @@ public partial class MainWindow : Window
 
         if (dialog.ShowDialog() == true)
         {
-            LoadVideo(dialog.FileName);
+            // Add to playlist if not already there / Добавить в плейлист если ещё нет
+            AddToPlaylistAndPlay(dialog.FileName);
         }
+    }
+
+    /// <summary>
+    /// Adds file to playlist and plays it / Добавляет файл в плейлист и воспроизводит его
+    /// </summary>
+    private void AddToPlaylistAndPlay(string filePath)
+    {
+        // Check if file is already in playlist / Проверить есть ли файл уже в плейлисте
+        var existingItem = _playlist.FirstOrDefault(p => p.FilePath == filePath);
+        int index;
+        
+        if (existingItem != null)
+        {
+            // File exists, just play it / Файл существует, просто воспроизвести
+            index = _playlist.IndexOf(existingItem);
+        }
+        else
+        {
+            // Add new item to playlist / Добавить новый элемент в плейлист
+            var newItem = new PlaylistItem { FilePath = filePath };
+            _playlist.Add(newItem);
+            index = _playlist.Count - 1;
+        }
+        
+        // Play the item / Воспроизвести элемент
+        PlayPlaylistItem(index);
     }
 
     private void LoadVideo(string filePath)
     {
         try
         {
-            _mpvPlayer?.Load(filePath);
+            if (_libVLC == null || _mediaPlayer == null) return;
+
+            // Stop current playback and dispose old media / Остановить текущее воспроизведение и освободить старый media
+            _mediaPlayer.Stop();
+            _currentMedia?.Dispose();
+            
+            // Reset pending seek position / Сбросить ожидающую позицию перемотки
+            _pendingSeekPosition = -1;
+            
+            _currentVideoPath = filePath;
+            _currentMedia = new Media(_libVLC, new Uri(filePath));
+            _mediaPlayer.Play(_currentMedia);
             _settings.LastVideoPath = filePath;
-            PlayPauseButton.Content = "\uE769"; // Pause icon
         }
         catch (Exception ex)
         {
@@ -320,27 +714,45 @@ public partial class MainWindow : Window
 
     private void TogglePlayPause()
     {
-        if (_mpvPlayer == null) return;
+        if (_mediaPlayer == null) return;
 
-        if (_mpvPlayer.IsPlaying)
+        if (_mediaPlayer.IsPlaying)
         {
-            _mpvPlayer.Pause();
-            PlayPauseButton.Content = "\uE768"; // Play icon
+            _mediaPlayer.Pause();
         }
         else
         {
-            _mpvPlayer.Resume();
-            PlayPauseButton.Content = "\uE769"; // Pause icon
+            // If video ended, reload and play from start / Если видео закончилось, перезагружаем и воспроизводим с начала
+            if (_mediaPlayer.State == VLCState.Ended && !string.IsNullOrEmpty(_currentVideoPath))
+            {
+                LoadVideo(_currentVideoPath);
+            }
+            else
+            {
+                _mediaPlayer.Play();
+            }
+            
+            // Hide control panel when playing in fullscreen / Скрываем панель управления при воспроизведении в полноэкранном режиме
+            if (_isFullscreen)
+            {
+                StartControlPanelHideTimer();
+            }
         }
     }
 
-    private void SeekRelative(double seconds)
+    private void SeekRelative(long milliseconds)
     {
-        if (_mpvPlayer == null || _mpvPlayer.Duration.TotalSeconds == 0) return;
+        if (_mediaPlayer == null || _mediaPlayer.Length == 0) return;
 
-        var newPosition = _mpvPlayer.Position.TotalSeconds + seconds;
-        newPosition = Math.Max(0, Math.Min(newPosition, _mpvPlayer.Duration.TotalSeconds));
-        _mpvPlayer.SeekAsync(TimeSpan.FromSeconds(newPosition));
+        var newTime = _mediaPlayer.Time + milliseconds;
+        newTime = Math.Max(0, Math.Min(newTime, _mediaPlayer.Length));
+        
+        // Block TimeChanged updates / Блокировать обновления TimeChanged
+        _pendingSeekPosition = newTime;
+        
+        // Use Position for better MKV support / Использовать Position для лучшей поддержки MKV
+        float position = (float)newTime / _mediaPlayer.Length;
+        _mediaPlayer.Position = position;
     }
 
     private void ChangeVolume(int delta)
@@ -353,35 +765,47 @@ public partial class MainWindow : Window
 
     #region UI Helper Methods / Вспомогательные методы UI
 
-    private void InitializePositionTimer()
+    private void InitializeControlPanelTimer()
     {
-        _positionTimer = new DispatcherTimer
+        _controlPanelTimer = new DispatcherTimer
         {
-            Interval = TimeSpan.FromMilliseconds(250)
+            Interval = TimeSpan.FromSeconds(3)
         };
-        _positionTimer.Tick += PositionTimer_Tick;
-        _positionTimer.Start();
+        _controlPanelTimer.Tick += ControlPanelTimer_Tick;
     }
 
-    private void PositionTimer_Tick(object? sender, EventArgs e)
+    private void ControlPanelTimer_Tick(object? sender, EventArgs e)
     {
-        if (_mpvPlayer != null && !_isDraggingSlider)
+        _controlPanelTimer?.Stop();
+        
+        // Hide control panel only if in fullscreen and playing / Скрываем панель только в полноэкранном режиме и при воспроизведении
+        if (_isFullscreen && _mediaPlayer != null && _mediaPlayer.IsPlaying)
         {
-            TimelineSlider.Value = _mpvPlayer.Position.TotalSeconds;
-            CurrentTimeText.Text = FormatTime(_mpvPlayer.Position);
+            ControlPanel.Visibility = Visibility.Collapsed;
         }
+    }
+
+    private void StartControlPanelHideTimer()
+    {
+        _controlPanelTimer?.Stop();
+        _controlPanelTimer?.Start();
+    }
+
+    private void ShowControlPanel()
+    {
+        ControlPanel.Visibility = Visibility.Visible;
     }
 
     private void UpdateVolumeIcon()
     {
-        if (VolumeSlider.Value == 0)
+        if (_isMuted || VolumeSlider.Value == 0)
             VolumeIcon.Text = "\uE74F"; // Muted
-        else if (VolumeSlider.Value < 33)
-            VolumeIcon.Text = "\uE993"; // Low
-        else if (VolumeSlider.Value < 66)
-            VolumeIcon.Text = "\uE994"; // Medium
+        else if (VolumeSlider.Value < 50)
+            VolumeIcon.Text = "\uE993"; // Low (0-49%)
+        else if (VolumeSlider.Value < 100)
+            VolumeIcon.Text = "\uE994"; // Medium (50-99%)
         else
-            VolumeIcon.Text = "\uE767"; // High
+            VolumeIcon.Text = "\uE767"; // High (100%+)
     }
 
     private static string FormatTime(TimeSpan time)
@@ -393,14 +817,14 @@ public partial class MainWindow : Window
 
     private void ToggleMaximize()
     {
-        if (WindowState == WindowState.Maximized)
+        if (WindowState == System.Windows.WindowState.Maximized)
         {
-            WindowState = WindowState.Normal;
+            WindowState = System.Windows.WindowState.Normal;
             MaximizeButton.Content = "\uE922"; // Maximize icon
         }
         else
         {
-            WindowState = WindowState.Maximized;
+            WindowState = System.Windows.WindowState.Maximized;
             MaximizeButton.Content = "\uE923"; // Restore icon
         }
     }
@@ -410,6 +834,7 @@ public partial class MainWindow : Window
         if (_isFullscreen)
         {
             // Exit fullscreen / Выход из полноэкранного режима
+            Topmost = PinButton.IsChecked == true; // Restore previous Topmost state / Восстановить предыдущее состояние Topmost
             WindowState = _previousWindowState;
             Width = _previousWidth;
             Height = _previousHeight;
@@ -427,10 +852,29 @@ public partial class MainWindow : Window
             _previousHeight = Height;
             _previousLeft = Left;
             _previousTop = Top;
-            WindowState = WindowState.Maximized;
+            
+            // Get screen bounds for true fullscreen / Получить границы экрана для настоящего полноэкранного режима
+            var screen = System.Windows.Forms.Screen.FromHandle(
+                new System.Windows.Interop.WindowInteropHelper(this).Handle);
+            var bounds = screen.Bounds;
+            
+            // Set window state to Normal first to allow manual sizing / Сначала Normal для ручного размера
+            WindowState = System.Windows.WindowState.Normal;
+            
+            // Position window to cover entire screen including taskbar and widgets / 
+            // Позиционировать окно на весь экран включая панель задач и виджеты
+            Left = bounds.Left;
+            Top = bounds.Top;
+            Width = bounds.Width;
+            Height = bounds.Height;
+            
+            Topmost = true; // Always on top in fullscreen / Всегда поверх в полноэкранном режиме
             ControlPanel.Visibility = Visibility.Collapsed;
             FullscreenButton.Content = "\uE73F";
             _isFullscreen = true;
+            
+            // Focus window to ensure hotkeys work / Фокус на окно для работы горячих клавиш
+            this.Focus();
         }
     }
 
@@ -452,16 +896,16 @@ public partial class MainWindow : Window
 
         if (_settings.IsMaximized)
         {
-            WindowState = WindowState.Maximized;
+            WindowState = System.Windows.WindowState.Maximized;
         }
     }
 
     private void SaveCurrentSettings()
     {
         // Save window state / Сохранение состояния окна
-        _settings.IsMaximized = WindowState == WindowState.Maximized;
+        _settings.IsMaximized = WindowState == System.Windows.WindowState.Maximized;
 
-        if (WindowState == WindowState.Normal)
+        if (WindowState == System.Windows.WindowState.Normal)
         {
             _settings.WindowLeft = Left;
             _settings.WindowTop = Top;
@@ -470,6 +914,111 @@ public partial class MainWindow : Window
         }
 
         SettingsService.Save(_settings);
+    }
+
+    #endregion
+
+    #region Playlist Methods / Методы плейлиста
+
+    private void PlaylistButton_Click(object sender, RoutedEventArgs e)
+    {
+        // Toggle playlist panel visibility / Переключить видимость панели плейлиста
+        if (PlaylistPanel.Visibility == Visibility.Visible)
+        {
+            PlaylistPanel.Visibility = Visibility.Collapsed;
+        }
+        else
+        {
+            PlaylistPanel.Visibility = Visibility.Visible;
+        }
+    }
+
+    private void PlaylistAddFiles_Click(object sender, RoutedEventArgs e)
+    {
+        // Open file dialog to add files to playlist / Открыть диалог для добавления файлов в плейлист
+        var dialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "Add to Playlist / Добавить в плейлист",
+            Filter = "Video Files|*.mp4;*.mkv;*.avi;*.mov;*.wmv;*.flv;*.webm|All Files|*.*",
+            Multiselect = true
+        };
+
+        if (dialog.ShowDialog() == true)
+        {
+            foreach (var file in dialog.FileNames)
+            {
+                // Check if file is already in playlist / Проверить, есть ли файл уже в плейлисте
+                if (!_playlist.Any(p => p.FilePath == file))
+                {
+                    _playlist.Add(new PlaylistItem { FilePath = file });
+                }
+            }
+
+            // If this is the first file and nothing is playing, start playback
+            // Если это первый файл и ничего не воспроизводится, начать воспроизведение
+            if (_playlist.Count > 0 && string.IsNullOrEmpty(_currentVideoPath))
+            {
+                PlayPlaylistItem(0);
+            }
+        }
+    }
+
+    private void PlaylistClear_Click(object sender, RoutedEventArgs e)
+    {
+        // Clear playlist / Очистить плейлист
+        _playlist.Clear();
+        _currentPlaylistIndex = -1;
+    }
+
+    private void PlaylistListBox_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        // Play selected item on double-click / Воспроизвести выбранный элемент по двойному клику
+        if (PlaylistListBox.SelectedItem is PlaylistItem item)
+        {
+            int index = _playlist.IndexOf(item);
+            if (index >= 0)
+            {
+                PlayPlaylistItem(index);
+            }
+        }
+    }
+
+    private void PlayPlaylistItem(int index)
+    {
+        // Play item at specified index / Воспроизвести элемент по указанному индексу
+        if (index < 0 || index >= _playlist.Count)
+            return;
+
+        // Update playing state for all items / Обновить состояние воспроизведения для всех элементов
+        for (int i = 0; i < _playlist.Count; i++)
+        {
+            _playlist[i].IsPlaying = (i == index);
+        }
+
+        _currentPlaylistIndex = index;
+        var item = _playlist[index];
+        LoadVideo(item.FilePath);
+        
+        // Select the item in the list / Выбрать элемент в списке
+        PlaylistListBox.SelectedIndex = index;
+    }
+
+    private void PlayNextInPlaylist()
+    {
+        // Play next item in playlist / Воспроизвести следующий элемент плейлиста
+        if (_currentPlaylistIndex < _playlist.Count - 1)
+        {
+            PlayPlaylistItem(_currentPlaylistIndex + 1);
+        }
+    }
+
+    private void PlayPreviousInPlaylist()
+    {
+        // Play previous item in playlist / Воспроизвести предыдущий элемент плейлиста
+        if (_currentPlaylistIndex > 0)
+        {
+            PlayPlaylistItem(_currentPlaylistIndex - 1);
+        }
     }
 
     #endregion

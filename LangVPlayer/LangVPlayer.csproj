@@ -10,9 +10,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="LibVLCSharp" Version="3.9.5" />
+    <PackageReference Include="LibVLCSharp.WPF" Version="3.9.5" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.1" />
-    <PackageReference Include="Mpv.NET" Version="1.2.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+    <!-- Removed VideoLAN.LibVLC.Windows - using system VLC instead for full codec support -->
+    <!-- Удален VideoLAN.LibVLC.Windows - используем системный VLC для полной поддержки кодеков -->
   </ItemGroup>
 
 </Project>
