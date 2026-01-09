@@ -240,24 +240,31 @@
                                         Margin="4,2">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto" SharedSizeGroup="Icon"/>
+                                            <ColumnDefinition Width="28"/>
                                             <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto" SharedSizeGroup="Shortcut"/>
                                             <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="16"/>
                                         </Grid.ColumnDefinitions>
                                         
-                                        <!-- Check Mark / Галочка -->
-                                        <Border x:Name="CheckMark" 
-                                                Grid.Column="0" 
-                                                Width="20" Height="20" 
-                                                Margin="4,0"
-                                                Visibility="Collapsed">
-                                            <TextBlock Text="✓" 
-                                                       FontSize="12" 
-                                                       Foreground="{StaticResource AccentBrush}"
-                                                       VerticalAlignment="Center" 
-                                                       HorizontalAlignment="Center"/>
-                                        </Border>
+                                        <!-- Icon Column / Колонка иконки -->
+                                        <ContentPresenter x:Name="IconPresenter"
+                                                          Grid.Column="0"
+                                                          ContentSource="Icon"
+                                                          Width="16" Height="16"
+                                                          HorizontalAlignment="Center"
+                                                          VerticalAlignment="Center"
+                                                          Margin="4,0,0,0"/>
+                                        
+                                        <!-- Check Mark for IsCheckable / Галочка для чекбоксов -->
+                                        <TextBlock x:Name="CheckMark" 
+                                                   Grid.Column="0"
+                                                   Text="&#xE73E;" 
+                                                   FontFamily="Segoe MDL2 Assets"
+                                                   FontSize="12"
+                                                   Foreground="{StaticResource AccentBrush}"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"
+                                                   Visibility="Collapsed"/>
                                         
                                         <!-- Header / Заголовок -->
                                         <ContentPresenter Grid.Column="1" 
@@ -279,7 +286,7 @@
                                               Data="M0,0 L4,4 L0,8" 
                                               Fill="{StaticResource TextSecondaryBrush}"
                                               VerticalAlignment="Center"
-                                              Margin="0,0,10,0"
+                                              Margin="0,0,8,0"
                                               Visibility="Collapsed"/>
                                     </Grid>
                                 </Border>
@@ -305,24 +312,28 @@
                                                               Opacity="0.4"/>
                                         </Border.Effect>
                                         <StackPanel IsItemsHost="True" 
-                                                    KeyboardNavigation.DirectionalNavigation="Cycle"
-                                                    Grid.IsSharedSizeScope="True"/>
+                                                    KeyboardNavigation.DirectionalNavigation="Cycle"/>
                                     </Border>
                                 </Popup>
                             </Grid>
                             <ControlTemplate.Triggers>
                                 <!-- Highlight on hover / Подсветка при наведении -->
                                 <Trigger Property="IsHighlighted" Value="True">
-                                    <Setter TargetName="Border" Property="Background" Value="{StaticResource AccentBrush}"/>
+                                    <Setter TargetName="Border" Property="Background" Value="#3C3C3C"/>
                                 </Trigger>
                                 <!-- Show arrow for items with submenu / Показать стрелку для элементов с подменю -->
                                 <Trigger Property="Role" Value="SubmenuHeader">
                                     <Setter TargetName="SubMenuArrow" Property="Visibility" Value="Visible"/>
                                 </Trigger>
                                 <!-- Show checkmark for checked items / Показать галочку для отмеченных элементов -->
-                                <Trigger Property="IsChecked" Value="True">
+                                <MultiTrigger>
+                                    <MultiTrigger.Conditions>
+                                        <Condition Property="IsCheckable" Value="True"/>
+                                        <Condition Property="IsChecked" Value="True"/>
+                                    </MultiTrigger.Conditions>
                                     <Setter TargetName="CheckMark" Property="Visibility" Value="Visible"/>
-                                </Trigger>
+                                    <Setter TargetName="IconPresenter" Property="Visibility" Value="Collapsed"/>
+                                </MultiTrigger>
                                 <!-- Top level header popup placement / Размещение popup для заголовков верхнего уровня -->
                                 <Trigger Property="Role" Value="TopLevelHeader">
                                     <Setter TargetName="PART_Popup" Property="Placement" Value="Bottom"/>

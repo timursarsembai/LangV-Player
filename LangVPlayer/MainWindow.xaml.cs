@@ -251,13 +251,6 @@ public partial class MainWindow : Window
         OpenVideoFile();
     }
 
-    private void MenuOpenUrl_Click(object sender, RoutedEventArgs e)
-    {
-        // TODO: Implement URL opening dialog
-        // TODO: Реализовать диалог открытия URL
-        System.Windows.MessageBox.Show("Функция открытия URL будет добавлена позже.", "LangV Player", MessageBoxButton.OK, MessageBoxImage.Information);
-    }
-
     private void MenuStop_Click(object sender, RoutedEventArgs e)
     {
         _mediaPlayer?.Stop();
@@ -757,7 +750,8 @@ public partial class MainWindow : Window
 
     private void ChangeVolume(int delta)
     {
-        var newVolume = Math.Max(0, Math.Min(100, VolumeSlider.Value + delta));
+        // VLC supports 0-200% volume / VLC поддерживает громкость 0-200%
+        var newVolume = Math.Max(0, Math.Min(200, VolumeSlider.Value + delta));
         VolumeSlider.Value = newVolume;
     }
 

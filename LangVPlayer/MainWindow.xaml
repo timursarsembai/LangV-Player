@@ -53,32 +53,132 @@
                 <MenuItem Header="☰" FontSize="16" Foreground="{StaticResource TextBrush}" 
                           Background="Transparent" BorderThickness="0" Padding="8,4">
                     <!-- File Menu / Меню Файл -->
-                    <MenuItem Header="📁 Файл">
-                        <MenuItem Header="Открыть файл..." Click="MenuOpenFile_Click" InputGestureText="Ctrl+O"/>
-                        <MenuItem Header="Открыть URL..." Click="MenuOpenUrl_Click" InputGestureText="Ctrl+U"/>
+                    <MenuItem>
+                        <MenuItem.Icon>
+                            <TextBlock Text="&#xE8E5;" FontFamily="Segoe MDL2 Assets" FontSize="14"/>
+                        </MenuItem.Icon>
+                        <MenuItem.Header>
+                            <TextBlock Text="Файл"/>
+                        </MenuItem.Header>
+                        <MenuItem Click="MenuOpenFile_Click" InputGestureText="Ctrl+O">
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xE8E5;" FontFamily="Segoe MDL2 Assets" FontSize="12"/>
+                            </MenuItem.Icon>
+                            <MenuItem.Header>
+                                <TextBlock Text="Открыть файл..."/>
+                            </MenuItem.Header>
+                        </MenuItem>
                         <Separator/>
-                        <MenuItem Header="Выход" Click="CloseButton_Click" InputGestureText="Alt+F4"/>
+                        <MenuItem Click="CloseButton_Click" InputGestureText="Alt+F4">
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xE7E8;" FontFamily="Segoe MDL2 Assets" FontSize="12"/>
+                            </MenuItem.Icon>
+                            <MenuItem.Header>
+                                <TextBlock Text="Выход"/>
+                            </MenuItem.Header>
+                        </MenuItem>
                     </MenuItem>
                     <!-- Playback Menu / Меню Воспроизведение -->
-                    <MenuItem Header="▶ Воспроизведение">
-                        <MenuItem x:Name="MenuPlayPause" Header="Воспроизвести" Click="PlayPauseButton_Click" InputGestureText="Space"/>
-                        <MenuItem Header="Стоп" Click="MenuStop_Click"/>
+                    <MenuItem>
+                        <MenuItem.Icon>
+                            <TextBlock Text="&#xE768;" FontFamily="Segoe MDL2 Assets" FontSize="14"/>
+                        </MenuItem.Icon>
+                        <MenuItem.Header>
+                            <TextBlock Text="Воспроизведение"/>
+                        </MenuItem.Header>
+                        <MenuItem x:Name="MenuPlayPause" Click="PlayPauseButton_Click" InputGestureText="Space">
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xE768;" FontFamily="Segoe MDL2 Assets" FontSize="12"/>
+                            </MenuItem.Icon>
+                            <MenuItem.Header>
+                                <TextBlock Text="Воспроизвести"/>
+                            </MenuItem.Header>
+                        </MenuItem>
+                        <MenuItem Click="MenuStop_Click">
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xE71A;" FontFamily="Segoe MDL2 Assets" FontSize="12"/>
+                            </MenuItem.Icon>
+                            <MenuItem.Header>
+                                <TextBlock Text="Стоп"/>
+                            </MenuItem.Header>
+                        </MenuItem>
                         <Separator/>
-                        <MenuItem Header="Перемотать назад (-10с)" Click="RewindButton_Click" InputGestureText="←"/>
-                        <MenuItem Header="Перемотать вперёд (+10с)" Click="ForwardButton_Click" InputGestureText="→"/>
+                        <MenuItem Click="RewindButton_Click" InputGestureText="←">
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xEB9E;" FontFamily="Segoe MDL2 Assets" FontSize="12"/>
+                            </MenuItem.Icon>
+                            <MenuItem.Header>
+                                <TextBlock Text="Назад (-10с)"/>
+                            </MenuItem.Header>
+                        </MenuItem>
+                        <MenuItem Click="ForwardButton_Click" InputGestureText="→">
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xEB9D;" FontFamily="Segoe MDL2 Assets" FontSize="12"/>
+                            </MenuItem.Icon>
+                            <MenuItem.Header>
+                                <TextBlock Text="Вперёд (+10с)"/>
+                            </MenuItem.Header>
+                        </MenuItem>
                         <Separator/>
-                        <MenuItem Header="Громкость +" Click="MenuVolumeUp_Click" InputGestureText="↑"/>
-                        <MenuItem Header="Громкость -" Click="MenuVolumeDown_Click" InputGestureText="↓"/>
+                        <MenuItem Click="MenuVolumeUp_Click" InputGestureText="↑">
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xE995;" FontFamily="Segoe MDL2 Assets" FontSize="12"/>
+                            </MenuItem.Icon>
+                            <MenuItem.Header>
+                                <TextBlock Text="Громкость +"/>
+                            </MenuItem.Header>
+                        </MenuItem>
+                        <MenuItem Click="MenuVolumeDown_Click" InputGestureText="↓">
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xE993;" FontFamily="Segoe MDL2 Assets" FontSize="12"/>
+                            </MenuItem.Icon>
+                            <MenuItem.Header>
+                                <TextBlock Text="Громкость -"/>
+                            </MenuItem.Header>
+                        </MenuItem>
                     </MenuItem>
                     <!-- View Menu / Меню Вид -->
-                    <MenuItem Header="🖥 Вид">
-                        <MenuItem x:Name="MenuFullscreen" Header="На полный экран" Click="FullscreenButton_Click" InputGestureText="F11"/>
-                        <MenuItem x:Name="MenuAlwaysOnTop" Header="Поверх всех окон" IsCheckable="True" 
-                                  Checked="MenuAlwaysOnTop_Checked" Unchecked="MenuAlwaysOnTop_Unchecked"/>
+                    <MenuItem>
+                        <MenuItem.Icon>
+                            <TextBlock Text="&#xE740;" FontFamily="Segoe MDL2 Assets" FontSize="14"/>
+                        </MenuItem.Icon>
+                        <MenuItem.Header>
+                            <TextBlock Text="Вид"/>
+                        </MenuItem.Header>
+                        <MenuItem x:Name="MenuFullscreen" Click="FullscreenButton_Click" InputGestureText="F11">
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xE740;" FontFamily="Segoe MDL2 Assets" FontSize="12"/>
+                            </MenuItem.Icon>
+                            <MenuItem.Header>
+                                <TextBlock Text="На полный экран"/>
+                            </MenuItem.Header>
+                        </MenuItem>
+                        <MenuItem x:Name="MenuAlwaysOnTop" IsCheckable="True" 
+                                  Checked="MenuAlwaysOnTop_Checked" Unchecked="MenuAlwaysOnTop_Unchecked">
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xE718;" FontFamily="Segoe MDL2 Assets" FontSize="12"/>
+                            </MenuItem.Icon>
+                            <MenuItem.Header>
+                                <TextBlock Text="Поверх всех окон"/>
+                            </MenuItem.Header>
+                        </MenuItem>
                     </MenuItem>
                     <!-- Help Menu / Меню Справка -->
-                    <MenuItem Header="❓ Справка">
-                        <MenuItem Header="О программе..." Click="MenuAbout_Click"/>
+                    <MenuItem>
+                        <MenuItem.Icon>
+                            <TextBlock Text="&#xE897;" FontFamily="Segoe MDL2 Assets" FontSize="14"/>
+                        </MenuItem.Icon>
+                        <MenuItem.Header>
+                            <TextBlock Text="Справка"/>
+                        </MenuItem.Header>
+                        <MenuItem Click="MenuAbout_Click">
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xE946;" FontFamily="Segoe MDL2 Assets" FontSize="12"/>
+                            </MenuItem.Icon>
+                            <MenuItem.Header>
+                                <TextBlock Text="О программе..."/>
+                            </MenuItem.Header>
+                        </MenuItem>
                     </MenuItem>
                 </MenuItem>
             </Menu>
