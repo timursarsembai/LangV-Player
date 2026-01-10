@@ -90,7 +90,6 @@ LangV-Player/
 │   ├── App.xaml          # Application resources
 │   ├── MainWindow.xaml   # Main window
 │   └── LangVPlayer.csproj
-├── DEV_LOG.md            # Development journal
 └── README.md
 ```
 
