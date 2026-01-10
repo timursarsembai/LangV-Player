@@ -301,6 +301,12 @@
                         <MenuItem.Icon>
                             <TextBlock Text="&#xE897;" FontFamily="Segoe MDL2 Assets" FontSize="16"/>
                         </MenuItem.Icon>
+                        <MenuItem x:Name="MenuSupportProject" Header="Помочь проекту" Click="DonateButton_Click">
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xEB51;" FontFamily="Segoe MDL2 Assets" FontSize="12" Foreground="#FFFF6B6B"/>
+                            </MenuItem.Icon>
+                        </MenuItem>
+                        <Separator/>
                         <MenuItem x:Name="MenuAbout" Header="О программе..." Click="MenuAbout_Click">
                             <MenuItem.Icon>
                                 <TextBlock Text="&#xE946;" FontFamily="Segoe MDL2 Assets" FontSize="12"/>
@@ -318,6 +324,15 @@
 
             <!-- Window Buttons / Кнопки окна -->
             <StackPanel Grid.Column="3" Orientation="Horizontal">
+                <!-- Donate Button / Кнопка донатов -->
+                <Button x:Name="DonateButton"
+                        Style="{StaticResource TitleBarButtonStyle}" 
+                        Content="&#xEB51;"
+                        Foreground="#FFFF6B6B"
+                        ToolTip="Support the project"
+                        Focusable="False"
+                        Click="DonateButton_Click"/>
+                
                 <!-- Pin Button / Кнопка закрепления -->
                 <ToggleButton x:Name="PinButton" 
                               Style="{StaticResource PinButtonStyle}" 

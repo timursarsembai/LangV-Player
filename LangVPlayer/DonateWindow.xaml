@@ -1,0 +1,172 @@
+<Window x:Class="LangVPlayer.DonateWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Support the Project"
+        Height="320" Width="400"
+        WindowStartupLocation="CenterOwner"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False">
+    
+    <Border Background="#FF1E1E1E" 
+            BorderBrush="#FF3F3F46" 
+            BorderThickness="1" 
+            CornerRadius="10">
+        <Border.Effect>
+            <DropShadowEffect ShadowDepth="0" BlurRadius="20" Opacity="0.5"/>
+        </Border.Effect>
+        
+        <Grid Margin="20">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            
+            <!-- Header with heart icon -->
+            <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,15">
+                <TextBlock Text="&#xEB51;" 
+                           FontFamily="Segoe MDL2 Assets" 
+                           FontSize="32" 
+                           Foreground="#FFFF6B6B"
+                           VerticalAlignment="Center"
+                           Margin="0,0,10,0"/>
+                <TextBlock x:Name="TitleText" 
+                           Text="Support the Project" 
+                           FontSize="22" 
+                           FontWeight="SemiBold"
+                           Foreground="White"
+                           VerticalAlignment="Center"/>
+            </StackPanel>
+            
+            <!-- Description -->
+            <TextBlock x:Name="DescriptionText" 
+                       Grid.Row="1"
+                       Text="If you enjoy this app, consider supporting its development!"
+                       FontSize="14"
+                       Foreground="#FFAAAAAA"
+                       TextWrapping="Wrap"
+                       TextAlignment="Center"
+                       Margin="0,0,0,20"/>
+            
+            <!-- Donate via label -->
+            <TextBlock x:Name="DonateViaText" 
+                       Grid.Row="2"
+                       Text="Donate via:"
+                       FontSize="14"
+                       Foreground="#FFCCCCCC"
+                       TextAlignment="Center"
+                       Margin="0,0,0,15"/>
+            
+            <!-- Donate buttons -->
+            <StackPanel Grid.Row="3" VerticalAlignment="Top" HorizontalAlignment="Center">
+                <!-- DonationAlerts Button -->
+                <Button x:Name="DonationAlertsButton" 
+                        Click="DonationAlertsButton_Click"
+                        Cursor="Hand"
+                        Margin="0,0,0,10">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="border" 
+                                    Background="#FF4A90D9" 
+                                    CornerRadius="8" 
+                                    Padding="20,12"
+                                    MinWidth="250">
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                    <TextBlock Text="&#xE1A7;" 
+                                               FontFamily="Segoe MDL2 Assets" 
+                                               FontSize="18" 
+                                               Foreground="White"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,10,0"/>
+                                    <TextBlock Text="DonationAlerts" 
+                                               FontSize="16" 
+                                               FontWeight="SemiBold"
+                                               Foreground="White"
+                                               VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="border" Property="Background" Value="#FF5DA0E9"/>
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="border" Property="Background" Value="#FF3A80C9"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Button.Template>
+                </Button>
+                
+                <!-- Liberapay Button -->
+                <Button x:Name="LiberapayButton" 
+                        Click="LiberapayButton_Click"
+                        Cursor="Hand">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="border" 
+                                    Background="#FFF6C915" 
+                                    CornerRadius="8" 
+                                    Padding="20,12"
+                                    MinWidth="250">
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                    <TextBlock Text="&#xE1A7;" 
+                                               FontFamily="Segoe MDL2 Assets" 
+                                               FontSize="18" 
+                                               Foreground="#FF1A1A1A"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,10,0"/>
+                                    <TextBlock Text="Liberapay" 
+                                               FontSize="16" 
+                                               FontWeight="SemiBold"
+                                               Foreground="#FF1A1A1A"
+                                               VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="border" Property="Background" Value="#FFFFD93D"/>
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="border" Property="Background" Value="#FFE6B912"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Button.Template>
+                </Button>
+            </StackPanel>
+            
+            <!-- Close button -->
+            <Button x:Name="CloseButton" 
+                    Grid.Row="4"
+                    Click="CloseButton_Click"
+                    HorizontalAlignment="Center"
+                    Cursor="Hand"
+                    Margin="0,15,0,0">
+                <Button.Template>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" 
+                                Background="#FF3F3F46" 
+                                CornerRadius="6" 
+                                Padding="30,8">
+                            <TextBlock x:Name="text" 
+                                       Text="Close" 
+                                       FontSize="14"
+                                       Foreground="#FFCCCCCC"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#FF4F4F56"/>
+                                <Setter TargetName="text" Property="Foreground" Value="White"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Button.Template>
+            </Button>
+        </Grid>
+    </Border>
+</Window>

@@ -59,6 +59,12 @@ public static class Strings
     public static string ClearAllSubs { get; private set; } = "Clear All Subtitles";
     public static string Help { get; private set; } = "Help";
     public static string About { get; private set; } = "About...";
+    public static string SupportProject { get; private set; } = "Support Project";
+    public static string SupportProjectTooltip { get; private set; } = "Support the project";
+    public static string DonateTitle { get; private set; } = "Support the Project";
+    public static string DonateDescription { get; private set; } = "If you enjoy this app, consider supporting its development!";
+    public static string DonateVia { get; private set; } = "Donate via:";
+    public static string Close { get; private set; } = "Close";
     public static string AppTitle { get; private set; } = "LangV Player";
     
     // Tooltips
@@ -151,6 +157,12 @@ public static class Strings
         ClearAllSubs = "Clear All Subtitles";
         Help = "Help";
         About = "About...";
+        SupportProject = "Support Project";
+        SupportProjectTooltip = "Support the project";
+        DonateTitle = "Support the Project";
+        DonateDescription = "If you enjoy this app, consider supporting its development!";
+        DonateVia = "Donate via:";
+        Close = "Close";
         AppTitle = "LangV Player";
         Error = "Error";
         VideoNotFound = "Video file not found";
@@ -236,6 +248,12 @@ public static class Strings
         ClearAllSubs = "Очистить все субтитры";
         Help = "Справка";
         About = "О программе...";
+        SupportProject = "Помочь проекту";
+        SupportProjectTooltip = "Поддержать проект";
+        DonateTitle = "Поддержать проект";
+        DonateDescription = "Если вам нравится приложение, рассмотрите возможность поддержать его развитие!";
+        DonateVia = "Поддержать через:";
+        Close = "Закрыть";
         AppTitle = "LangV Player";
         Error = "Ошибка";
         ErrorLoadingVideo = "Ошибка загрузки видео.";

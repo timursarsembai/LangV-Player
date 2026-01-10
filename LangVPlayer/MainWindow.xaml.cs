@@ -207,6 +207,7 @@ public partial class MainWindow : Window
         MenuLanguageRussian.Header = Strings.Russian;
         
         MenuHelp.Header = Strings.Help;
+        MenuSupportProject.Header = Strings.SupportProject;
         MenuAbout.Header = Strings.About;
         
         // Placeholder and buttons / Заглушка и кнопки
@@ -214,6 +215,7 @@ public partial class MainWindow : Window
         OpenFileButton.Content = Strings.OpenVideo;
         
         // Tooltips / Подсказки
+        DonateButton.ToolTip = Strings.SupportProjectTooltip;
         PinButton.ToolTip = Strings.AlwaysOnTopTooltip;
         // Note: MinimizeButton, MaximizeButton, CloseButton don't have x:Name, so we can't set them here
         
@@ -649,6 +651,15 @@ public partial class MainWindow : Window
             "О программе",
             MessageBoxButton.OK,
             MessageBoxImage.Information);
+    }
+
+    private void DonateButton_Click(object sender, RoutedEventArgs e)
+    {
+        var donateWindow = new DonateWindow
+        {
+            Owner = this
+        };
+        donateWindow.ShowDialog();
     }
 
     private void MenuLanguage_Click(object sender, RoutedEventArgs e)
