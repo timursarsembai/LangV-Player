@@ -1012,6 +1012,9 @@ public partial class MainWindow : Window
             // Update embedded subtitles menu / Обновить меню встроенных субтитров
             UpdateEmbeddedSubtitlesMenu();
             
+            // Update audio tracks menu / Обновить меню аудиодорожек
+            UpdateAudioTracksMenu();
+            
             // Always disable VLC built-in subtitles - we use our own overlay
             // Всегда отключаем встроенные субтитры VLC - используем свой overlay
             _mediaPlayer.SetSpu(-1);
@@ -1417,14 +1420,22 @@ public partial class MainWindow : Window
 
     private void UpdateVolumeIcon()
     {
-        if (_isMuted || VolumeSlider.Value == 0)
+        bool isMutedOrZero = _isMuted || (VolumeSlider != null && VolumeSlider.Value == 0);
+        
+        if (isMutedOrZero)
             VolumeIcon.Text = "\uE74F"; // Muted
-        else if (VolumeSlider.Value < 50)
+        else if (VolumeSlider != null && VolumeSlider.Value < 50)
             VolumeIcon.Text = "\uE993"; // Low (0-49%)
-        else if (VolumeSlider.Value < 100)
+        else if (VolumeSlider != null && VolumeSlider.Value < 100)
             VolumeIcon.Text = "\uE994"; // Medium (50-99%)
         else
             VolumeIcon.Text = "\uE767"; // High (100%+)
+            
+        // Update menu item / Обновить пункт меню
+        if (MenuMute != null)
+        {
+            MenuMute.Header = isMutedOrZero ? "Включить звук" : "Выключить звук";
+        }
     }
 
     private static string FormatTime(TimeSpan time)
@@ -1792,6 +1803,81 @@ public partial class MainWindow : Window
         {
             PlayPlaylistItem(_currentPlaylistIndex - 1);
         }
+    }
+
+    #endregion
+
+    #region Audio Methods / Методы аудио
+
+    /// <summary>
+    /// Updates available audio tracks in the menu.
+    /// Обновляет доступные аудиодорожки в меню.
+    /// </summary>
+    private void UpdateAudioTracksMenu()
+    {
+        if (_mediaPlayer == null) return;
+        
+        MenuAudioTracks.Items.Clear();
+        
+        var tracks = _mediaPlayer.AudioTrackDescription;
+        int currentTrackId = _mediaPlayer.AudioTrack;
+        
+        if (tracks == null || tracks.Length == 0)
+        {
+            var emptyItem = new System.Windows.Controls.MenuItem
+            {
+                Header = "(нет дорожек)",
+                IsEnabled = false
+            };
+            MenuAudioTracks.Items.Add(emptyItem);
+            return;
+        }
+        
+        foreach (var track in tracks)
+        {
+            var item = new System.Windows.Controls.MenuItem
+            {
+                Header = track.Name,
+                Tag = track.Id,
+                IsCheckable = true,
+                IsChecked = track.Id == currentTrackId
+            };
+            item.Click += AudioTrack_Click;
+            MenuAudioTracks.Items.Add(item);
+        }
+    }
+    
+    /// <summary>
+    /// Handles audio track selection.
+    /// Обработчик выбора аудиодорожки.
+    /// </summary>
+    private void AudioTrack_Click(object sender, RoutedEventArgs e)
+    {
+        if (_mediaPlayer == null) return;
+        
+        if (sender is System.Windows.Controls.MenuItem item && item.Tag is int trackId)
+        {
+            if (_mediaPlayer.SetAudioTrack(trackId))
+            {
+                // Update checkmarks / Обновить галочки
+                foreach (var menuItem in MenuAudioTracks.Items)
+                {
+                    if (menuItem is System.Windows.Controls.MenuItem mi)
+                    {
+                        mi.IsChecked = (int)mi.Tag == trackId;
+                    }
+                }
+            }
+        }
+    }
+    
+    /// <summary>
+    /// Handles Mute menu item click.
+    /// Обработчик клика по пункту меню "Выключить звук".
+    /// </summary>
+    private void MenuMute_Click(object sender, RoutedEventArgs e)
+    {
+        ToggleMute();
     }
 
     #endregion

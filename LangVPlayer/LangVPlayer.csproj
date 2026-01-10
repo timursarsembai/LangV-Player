@@ -18,6 +18,11 @@
     <!-- Удален VideoLAN.LibVLC.Windows - используем системный VLC для полной поддержки кодеков -->
   </ItemGroup>
 
+  <ItemGroup>
+    <Resource Include="video.ico" />
+    <Resource Include="video.png" />
+  </ItemGroup>
+
   <!-- FFmpeg for thumbnail generation / FFmpeg для генерации миниатюр -->
   <ItemGroup>
     <None Include="ffmpeg\**" CopyToOutputDirectory="PreserveNewest" />

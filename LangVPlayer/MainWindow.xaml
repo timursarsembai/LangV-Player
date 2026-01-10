@@ -11,6 +11,7 @@
         MinHeight="400" MinWidth="600"
         WindowStyle="None"
         AllowsTransparency="True"
+        Icon="video.ico"
         Background="{StaticResource PrimaryBackgroundBrush}"
         Loaded="Window_Loaded"
         Closing="Window_Closing"
@@ -128,6 +129,35 @@
                             <MenuItem x:Name="Speed200" Header="2.0x" Click="SpeedPreset_Click" Tag="2.0"/>
                         </MenuItem>
                     </MenuItem>
+                    <!-- Audio Menu / Меню Аудио -->
+                    <MenuItem Header="Аудио">
+                        <MenuItem.Icon>
+                            <TextBlock Text="&#xE767;" FontFamily="Segoe MDL2 Assets" FontSize="14"/>
+                        </MenuItem.Icon>
+                        <!-- Audio Tracks submenu / Подменю аудиодорожек -->
+                        <MenuItem x:Name="MenuAudioTracks" Header="Аудиодорожка">
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xE8D6;" FontFamily="Segoe MDL2 Assets" FontSize="12"/>
+                            </MenuItem.Icon>
+                            <!-- Dynamic items added in code / Динамические элементы добавляются в коде -->
+                        </MenuItem>
+                        <Separator/>
+                        <MenuItem Header="Увеличить громкость" Click="MenuVolumeUp_Click" InputGestureText="↑">
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xE995;" FontFamily="Segoe MDL2 Assets" FontSize="12"/>
+                            </MenuItem.Icon>
+                        </MenuItem>
+                        <MenuItem Header="Уменьшить громкость" Click="MenuVolumeDown_Click" InputGestureText="↓">
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xE993;" FontFamily="Segoe MDL2 Assets" FontSize="12"/>
+                            </MenuItem.Icon>
+                        </MenuItem>
+                        <MenuItem x:Name="MenuMute" Header="Выключить звук" Click="MenuMute_Click" InputGestureText="M">
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xE74F;" FontFamily="Segoe MDL2 Assets" FontSize="12"/>
+                            </MenuItem.Icon>
+                        </MenuItem>
+                    </MenuItem>
                     <!-- View Menu / Меню Вид -->
                     <MenuItem Header="Вид">
                         <MenuItem.Icon>
@@ -217,7 +247,7 @@
 
             <!-- App Title / Название приложения -->
             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="5,0">
-                <TextBlock Text="🎬" FontSize="14" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <Image Source="video.png" Width="20" Height="20" VerticalAlignment="Center" Margin="0,0,8,0" RenderOptions.BitmapScalingMode="HighQuality"/>
                 <TextBlock Text="LangV Player" Foreground="{StaticResource TextBrush}" FontSize="12" VerticalAlignment="Center"/>
             </StackPanel>
 
