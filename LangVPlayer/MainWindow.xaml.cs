@@ -54,6 +54,19 @@ public partial class MainWindow : Window
     private DispatcherTimer? _thumbnailDebounceTimer;
     private long _lastThumbnailTimeMs = -1;
     private bool _isDraggingThumb = false;
+    
+    // Compact/PiP mode / Компактный режим
+    private bool _isCompactMode = false;
+    private double _compactPreviousWidth;
+    private double _compactPreviousHeight;
+    private double _compactPreviousLeft;
+    private double _compactPreviousTop;
+    private System.Windows.WindowState _compactPreviousWindowState;
+    private bool _compactPreviousPinState = false;
+    
+    // Compact mode settings / Настройки компактного режима
+    private const double CompactWidth = 400;
+    private const double CompactHeight = 225; // 16:9 aspect ratio
 
     #endregion
 
@@ -119,8 +132,32 @@ public partial class MainWindow : Window
         // Initialize VLC player / Инициализация VLC плеера
         InitializeVlcPlayer();
         
+        // Subscribe to Activated event to ensure hotkeys work / 
+        // Подписаться на событие Activated для работы горячих клавиш
+        this.Activated += Window_Activated;
+        
         // Note: AlwaysOnTop is applied in SourceInitialized event (constructor) where hwnd is guaranteed
         // Примечание: AlwaysOnTop применяется в событии SourceInitialized (конструктор) где hwnd гарантирован
+    }
+    
+    private void Window_Activated(object? sender, EventArgs e)
+    {
+        // Always ensure window has focus for hotkeys when activated / 
+        // Всегда обеспечить фокус для горячих клавиш при активации
+        if (!_isClosing)
+        {
+            this.Focus();
+        }
+    }
+    
+    private void Window_PreviewMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        // Ensure window has keyboard focus on any mouse click / 
+        // Обеспечить фокус клавиатуры при любом клике мыши
+        if (!_isClosing)
+        {
+            this.Focus();
+        }
     }
 
     private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
@@ -211,11 +248,20 @@ public partial class MainWindow : Window
                 e.Handled = true;
                 break;
             case Key.Escape:
-                if (_isFullscreen)
+                if (_isCompactMode)
+                {
+                    ToggleCompactMode();
+                    e.Handled = true;
+                }
+                else if (_isFullscreen)
                 {
                     ToggleFullscreen();
                     e.Handled = true;
                 }
+                break;
+            case Key.P:
+                ToggleCompactMode();
+                e.Handled = true;
                 break;
             // Speed controls / Управление скоростью
             case Key.OemOpenBrackets: // '[' key
@@ -241,6 +287,24 @@ public partial class MainWindow : Window
     {
         // Return focus to window for hotkeys / Вернуть фокус на окно для горячих клавиш
         this.Focus();
+        
+        // In compact mode: single click to drag, double-click to exit compact mode
+        // В компактном режиме: один клик для перетаскивания, двойной для выхода
+        if (_isCompactMode)
+        {
+            if (e.ClickCount == 2)
+            {
+                ToggleCompactMode();
+                e.Handled = true;
+            }
+            else
+            {
+                // Allow dragging the window / Разрешить перетаскивание окна
+                this.DragMove();
+                e.Handled = true;
+            }
+            return;
+        }
         
         // Double-click to toggle fullscreen / Двойной клик для переключения полноэкранного режима
         if (e.ClickCount == 2)
@@ -401,6 +465,11 @@ public partial class MainWindow : Window
     private void FullscreenButton_Click(object sender, RoutedEventArgs e)
     {
         ToggleFullscreen();
+    }
+
+    private void CompactModeButton_Click(object sender, RoutedEventArgs e)
+    {
+        ToggleCompactMode();
     }
 
     private void VolumeIcon_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -1260,6 +1329,141 @@ public partial class MainWindow : Window
             // Focus window to ensure hotkeys work / Фокус на окно для работы горячих клавиш
             this.Focus();
         }
+    }
+
+    /// <summary>
+    /// Toggle compact/PiP mode - small always-on-top window on all virtual desktops.
+    /// Переключение компактного/PiP режима - маленькое окно поверх всех на всех виртуальных столах.
+    /// </summary>
+    private void ToggleCompactMode()
+    {
+        if (_isCompactMode)
+        {
+            // Exit compact mode / Выход из компактного режима
+            ExitCompactMode();
+        }
+        else
+        {
+            // Exit fullscreen first if active / Сначала выйти из полноэкранного режима если активен
+            if (_isFullscreen)
+            {
+                ToggleFullscreen();
+            }
+            
+            // Enter compact mode / Вход в компактный режим
+            EnterCompactMode();
+        }
+    }
+
+    /// <summary>
+    /// Enter compact/PiP mode.
+    /// Войти в компактный режим.
+    /// </summary>
+    private void EnterCompactMode()
+    {
+        // Save current window state / Сохранить текущее состояние окна
+        _compactPreviousWidth = Width;
+        _compactPreviousHeight = Height;
+        _compactPreviousLeft = Left;
+        _compactPreviousTop = Top;
+        _compactPreviousWindowState = WindowState;
+        _compactPreviousPinState = PinButton.IsChecked == true;
+        
+        // Set window state to Normal for manual sizing / Установить Normal для ручного размера
+        WindowState = System.Windows.WindowState.Normal;
+        
+        // Hide UI elements FIRST before sizing / Скрыть элементы UI СНАЧАЛА до изменения размера
+        TitleBarRow.Height = new GridLength(0); // Collapse row height / Свернуть высоту строки
+        TitleBar.Visibility = Visibility.Collapsed;
+        ControlPanel.Visibility = Visibility.Collapsed;
+        PlaylistPanel.Visibility = Visibility.Collapsed;
+        
+        // Set minimum size for compact mode / Установить минимальный размер для компактного режима
+        MinWidth = 200;
+        MinHeight = 112;
+        
+        // Set compact size / Установить компактный размер
+        Width = CompactWidth;
+        Height = CompactHeight;
+        
+        // Position in bottom-right corner of screen with DPI scaling / 
+        // Позиция в правом нижнем углу экрана с учётом DPI
+        var screen = System.Windows.Forms.Screen.FromHandle(
+            new System.Windows.Interop.WindowInteropHelper(this).Handle);
+        var workingArea = screen.WorkingArea;
+        
+        // Convert screen pixels to WPF units / Конвертировать пиксели экрана в единицы WPF
+        WindowHelper.GetDpiScale(this, out double scaleX, out double scaleY);
+        double wpfRight = workingArea.Right / scaleX;
+        double wpfBottom = workingArea.Bottom / scaleY;
+        
+        Left = wpfRight - CompactWidth - 20; // 20px margin / 20px отступ
+        Top = wpfBottom - CompactHeight - 20;
+        
+        // Always on top / Всегда поверх
+        Topmost = true;
+        PinButton.IsChecked = true;
+        
+        // Pin to all virtual desktops (makes window show on all desktops) / 
+        // Закрепить на всех виртуальных рабочих столах
+        WindowHelper.SetShowOnAllVirtualDesktops(this, true);
+        
+        // Update button icon if exists / Обновить иконку кнопки если существует
+        if (CompactModeButton != null)
+        {
+            CompactModeButton.Content = "\uEE49"; // Exit PiP icon
+            CompactModeButton.ToolTip = "Выйти из компактного режима (P)";
+        }
+        
+        _isCompactMode = true;
+        
+        // Force focus on window for hotkeys / Принудительный фокус для горячих клавиш
+        this.Activate();
+        this.Focus();
+    }
+
+    /// <summary>
+    /// Exit compact/PiP mode.
+    /// Выйти из компактного режима.
+    /// </summary>
+    private void ExitCompactMode()
+    {
+        // Unpin from all virtual desktops / Открепить от всех виртуальных рабочих столов
+        WindowHelper.SetShowOnAllVirtualDesktops(this, false);
+        
+        // Restore window state / Восстановить состояние окна
+        WindowState = _compactPreviousWindowState;
+        Width = _compactPreviousWidth;
+        Height = _compactPreviousHeight;
+        Left = _compactPreviousLeft;
+        Top = _compactPreviousTop;
+        
+        // Show UI elements / Показать элементы UI
+        TitleBarRow.Height = new GridLength(30); // Restore row height / Восстановить высоту строки
+        TitleBar.Visibility = Visibility.Visible;
+        ControlPanel.Visibility = Visibility.Visible;
+        // Playlist panel visibility is controlled by toggle / Видимость плейлиста контролируется переключателем
+        
+        // Restore minimum size / Восстановить минимальный размер
+        MinWidth = 600;
+        MinHeight = 400;
+        
+        // Restore Topmost state / Восстановить состояние Topmost
+        PinButton.IsChecked = _compactPreviousPinState;
+        Topmost = _compactPreviousPinState;
+        WindowHelper.SetAlwaysOnTop(this, _compactPreviousPinState);
+        
+        // Update button icon if exists / Обновить иконку кнопки если существует
+        if (CompactModeButton != null)
+        {
+            CompactModeButton.Content = "\uEE47"; // PiP icon
+            CompactModeButton.ToolTip = "Компактный режим (P)";
+        }
+        
+        _isCompactMode = false;
+        
+        // Focus window / Фокус на окно
+        this.Focus();
     }
 
     #endregion

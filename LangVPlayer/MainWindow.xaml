@@ -14,7 +14,8 @@
         Background="{StaticResource PrimaryBackgroundBrush}"
         Loaded="Window_Loaded"
         Closing="Window_Closing"
-        PreviewKeyDown="Window_PreviewKeyDown">
+        PreviewKeyDown="Window_PreviewKeyDown"
+        PreviewMouseDown="Window_PreviewMouseDown">
     
     <WindowChrome.WindowChrome>
         <WindowChrome CaptionHeight="0" ResizeBorderThickness="5"/>
@@ -32,7 +33,7 @@
         <Grid Grid.Column="0">
             <Grid.RowDefinitions>
                 <!-- TitleBar / Заголовок -->
-                <RowDefinition Height="30"/>
+                <RowDefinition x:Name="TitleBarRow" Height="30"/>
                 <!-- Video Area / Область видео -->
                 <RowDefinition Height="*"/>
                 <!-- Control Panel / Панель управления -->
@@ -40,7 +41,7 @@
             </Grid.RowDefinitions>
 
         <!-- Custom TitleBar / Кастомный заголовок -->
-        <Grid Grid.Row="0" Background="{StaticResource TitleBarBrush}" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+        <Grid x:Name="TitleBar" Grid.Row="0" Background="{StaticResource TitleBarBrush}" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
@@ -219,6 +220,15 @@
                                 <TextBlock Text="На полный экран"/>
                             </MenuItem.Header>
                         </MenuItem>
+                        <MenuItem x:Name="MenuCompactMode" Click="CompactModeButton_Click" InputGestureText="P">
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xEE47;" FontFamily="Segoe MDL2 Assets" FontSize="12"/>
+                            </MenuItem.Icon>
+                            <MenuItem.Header>
+                                <TextBlock Text="Компактный режим"/>
+                            </MenuItem.Header>
+                        </MenuItem>
+                        <Separator/>
                         <MenuItem x:Name="MenuAlwaysOnTop" IsCheckable="True" 
                                   Checked="MenuAlwaysOnTop_Checked" Unchecked="MenuAlwaysOnTop_Unchecked">
                             <MenuItem.Icon>
@@ -542,6 +552,16 @@
                             Focusable="False"
                             Click="PlaylistButton_Click"
                             ToolTip="Playlist / Плейлист"/>
+                    
+                    <!-- Compact/PiP Mode Button / Кнопка компактного режима -->
+                    <Button x:Name="CompactModeButton"
+                            Style="{StaticResource ControlButtonStyle}" 
+                            Content="&#xEE47;" 
+                            Width="40" Height="40"
+                            Margin="5,0,0,0"
+                            Focusable="False"
+                            Click="CompactModeButton_Click"
+                            ToolTip="Компактный режим (P)"/>
                     
                     <!-- Fullscreen Button / Кнопка полного экрана -->
                     <Button x:Name="FullscreenButton"
