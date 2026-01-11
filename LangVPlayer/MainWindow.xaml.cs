@@ -1323,6 +1323,17 @@ public partial class MainWindow : Window
         PlayPlaylistItem(index);
     }
 
+    public void LoadVideoFromCommandLine(string filePath)
+    {
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, new Action(() =>
+        {
+            if (!string.IsNullOrEmpty(filePath) && System.IO.File.Exists(filePath))
+            {
+                AddToPlaylistAndPlay(filePath);
+            }
+        }));
+    }
+
     private void LoadVideo(string filePath)
     {
         try
@@ -1588,6 +1599,8 @@ public partial class MainWindow : Window
             Height = _previousHeight;
             Left = _previousLeft;
             Top = _previousTop;
+            TitleBarRow.Height = new GridLength(30);
+            TitleBar.Visibility = Visibility.Visible;
             ControlPanel.Visibility = Visibility.Visible;
             FullscreenButton.Content = "\uE740";
             _isFullscreen = false;
@@ -1616,7 +1629,9 @@ public partial class MainWindow : Window
             Width = bounds.Width;
             Height = bounds.Height;
             
-            Topmost = true; // Always on top in fullscreen / Всегда поверх в полноэкранном режиме
+            Topmost = true;
+            TitleBarRow.Height = new GridLength(0);
+            TitleBar.Visibility = Visibility.Collapsed;
             ControlPanel.Visibility = Visibility.Collapsed;
             FullscreenButton.Content = "\uE73F";
             _isFullscreen = true;
